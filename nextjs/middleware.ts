@@ -1,17 +1,20 @@
-import { getSession } from "./auth/session";
+import { getSession, updateSession } from "./auth/session";
 import { NextRequest, NextResponse } from "next/server";
 
-const public_routes = ["/login", "/register"];
+const public_routes = ["/login", "/register", "/api/oauth/"];
 
 export async function middleware(request: NextRequest) {
-    const protected_path = !public_routes.includes(request.nextUrl.pathname);
+    const protected_path = !public_routes.some((route) =>
+        request.nextUrl.pathname === route ||
+        request.nextUrl.pathname.startsWith(route)
+    );
 
     if (protected_path) {
         const user = await getSession();
         if (!user) return NextResponse.redirect(new URL("/login", request.url));
     }
 
-    return NextResponse.next();
+    return await updateSession(request);
 }
 
 export const config = {

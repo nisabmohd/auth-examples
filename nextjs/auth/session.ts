@@ -1,9 +1,11 @@
 import { db } from "@/db/drizzle/client";
-import { usersTable } from "@/db/drizzle/schema";
+import { userTable } from "@/db/drizzle/schema";
 import { redis } from "@/db/redis";
+import { Cookies } from "@/lib/utils";
 import crypto from "crypto";
 import { eq } from "drizzle-orm";
 import { cookies as nextCookies } from "next/headers";
+import { NextRequest, NextResponse } from "next/server";
 import { cache } from "react";
 import { z } from "zod";
 
@@ -31,15 +33,17 @@ function saveSession(id: string, user: CreateSessionPayload) {
     );
 }
 
-export async function createSession(user: CreateSessionPayload) {
+export async function createSession(
+    user: CreateSessionPayload,
+    cookies: Cookies,
+) {
     const id = createSessionId();
     await saveSession(id, user);
-    const cookies = await nextCookies();
     cookies.set("session", id, {
         httpOnly: true,
         secure: true,
         sameSite: "lax",
-        expires: new Date(Date.now() + EXPIRATION_TIME_IN_SECONDS * 1000),
+        expires: Date.now() + EXPIRATION_TIME_IN_SECONDS * 1000,
     });
 }
 
@@ -51,23 +55,44 @@ export async function destroySession() {
     cookies.delete("session");
 }
 
+async function queryDbSession(sessionId: string) {
+    return await redis.get(`session:${sessionId}`) as
+        | CreateSessionPayload
+        | null;
+}
+
 export const getSession = cache(async () => {
     const cookies = await nextCookies();
     const sessionId = cookies.get("session")?.value;
     if (!sessionId) return null;
-    const sessionUser = await redis.get(`session:${sessionId}`) as
-        | CreateSessionPayload
-        | null;
-    if (!sessionUser) return null;
-    return sessionUser;
+    return queryDbSession(sessionId);
 });
 
 export const getSessionUser = cache(async () => {
     const sessionUser = await getSession();
     if (!sessionUser) return null;
-    const [user] = await db.select().from(usersTable).where(
-        eq(usersTable.id, sessionUser.id),
+    const [user] = await db.select().from(userTable).where(
+        eq(userTable.id, sessionUser.id),
     );
     if (!user) return null;
     return user;
 });
+
+export async function updateSession(req: NextRequest) {
+    const sessionId = req.cookies.get("session")?.value;
+    if (!sessionId) return null;
+    const sessionUser = await queryDbSession(sessionId);
+    if (!sessionUser) return null;
+    await saveSession(sessionId, sessionUser);
+
+    const res = NextResponse.next();
+    res.cookies.set({
+        name: "session",
+        value: sessionId,
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        expires: new Date(Date.now() + EXPIRATION_TIME_IN_SECONDS * 1000),
+    });
+    return res;
+}

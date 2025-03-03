@@ -1,5 +1,5 @@
 import { db } from "@/db/drizzle/client";
-import { usersTable } from "@/db/drizzle/schema";
+import { userTable } from "@/db/drizzle/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import crypto from "crypto";
@@ -14,14 +14,14 @@ export type SignUpPayload = z.infer<typeof signUpSchema>;
 
 export async function signUp(payload: SignUpPayload) {
     const { email, password, fullName } = signUpSchema.parse(payload);
-    const rawResult = await db.select().from(usersTable).where(
-        eq(usersTable.email, email),
+    const rawResult = await db.select().from(userTable).where(
+        eq(userTable.email, email),
     );
     const user = rawResult[0];
     if (user) throw new Error("User already exist");
     const salt = generateSalt();
     const hashedPassword = await hashPassword(password, salt);
-    const dbUser = await db.insert(usersTable).values({
+    const dbUser = await db.insert(userTable).values({
         email,
         password: hashedPassword,
         fullName,
@@ -39,11 +39,12 @@ export type SignInPayload = z.infer<typeof signInSchema>;
 
 export async function signIn(payload: SignInPayload) {
     const { email, password } = signInSchema.parse(payload);
-    const rawResult = await db.select().from(usersTable).where(
-        eq(usersTable.email, email),
+    const rawResult = await db.select().from(userTable).where(
+        eq(userTable.email, email),
     );
     const user = rawResult[0];
     if (!user) throw new Error("User not found");
+    if (!user.password || !user.salt) throw new Error("Unable to login");
     const correctPassword = await checkPassword(
         password,
         user.password,
