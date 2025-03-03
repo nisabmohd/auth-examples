@@ -40,9 +40,9 @@ export async function GET(
 }
 
 async function connectUser(oauthUser: OAuthUser) {
-    let user = (await db.select().from(userTable).where(
+    let [user] = await db.select().from(userTable).where(
         eq(userTable.email, oauthUser.email),
-    ))[0];
+    );
 
     if (user == null) {
         [user] = await db

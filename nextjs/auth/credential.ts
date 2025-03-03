@@ -14,20 +14,19 @@ export type SignUpPayload = z.infer<typeof signUpSchema>;
 
 export async function signUp(payload: SignUpPayload) {
     const { email, password, fullName } = signUpSchema.parse(payload);
-    const rawResult = await db.select().from(userTable).where(
+    let [user] = await db.select().from(userTable).where(
         eq(userTable.email, email),
     );
-    const user = rawResult[0];
     if (user) throw new Error("User already exist");
     const salt = generateSalt();
     const hashedPassword = await hashPassword(password, salt);
-    const dbUser = await db.insert(userTable).values({
+    [user] = await db.insert(userTable).values({
         email,
         password: hashedPassword,
         fullName,
         salt,
     }).returning();
-    return dbUser[0];
+    return user;
 }
 
 const signInSchema = z.object({
@@ -39,10 +38,9 @@ export type SignInPayload = z.infer<typeof signInSchema>;
 
 export async function signIn(payload: SignInPayload) {
     const { email, password } = signInSchema.parse(payload);
-    const rawResult = await db.select().from(userTable).where(
+    const [user] = await db.select().from(userTable).where(
         eq(userTable.email, email),
     );
-    const user = rawResult[0];
     if (!user) throw new Error("User not found");
     if (!user.password || !user.salt) throw new Error("Unable to login");
     const correctPassword = await checkPassword(

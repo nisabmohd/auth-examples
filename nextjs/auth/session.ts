@@ -71,7 +71,11 @@ export const getSession = cache(async () => {
 export const getSessionUser = cache(async () => {
     const sessionUser = await getSession();
     if (!sessionUser) return null;
-    const [user] = await db.select().from(userTable).where(
+    const [user] = await db.select({
+        id: userTable.id,
+        fullName: userTable.fullName,
+        email: userTable.email,
+    }).from(userTable).where(
         eq(userTable.id, sessionUser.id),
     );
     if (!user) return null;
