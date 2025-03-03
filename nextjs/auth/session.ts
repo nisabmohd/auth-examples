@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cache } from "react";
 import { z } from "zod";
 
-const EXPIRATION_TIME_IN_SECONDS = 7 * 24 * 60 * 60; // 7 days
+export const EXPIRATION_TIME_IN_SECONDS = 7 * 24 * 60 * 60; // 7 days
 
 const createSessionSchema = z.object({
     id: z.string(),

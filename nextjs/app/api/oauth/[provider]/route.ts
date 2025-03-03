@@ -1,4 +1,4 @@
-import { getOAuthClient } from "@/auth/client";
+import { getOAuthClient } from "@/auth/oauth-client";
 import { OAuthUser } from "@/auth/oauth";
 import { createSession } from "@/auth/session";
 import { db } from "@/db/drizzle/client";
@@ -6,31 +6,37 @@ import { oauthTable, Provider, userTable } from "@/db/drizzle/schema";
 import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
+import { getErrorMessage } from "@/lib/utils";
 
 const searchParamsSchema = z.object({
     code: z.string(),
+    state: z.string(),
 });
 
 export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ provider: Provider }> },
 ) {
-    const { success, data } = searchParamsSchema.safeParse(
-        Object.fromEntries(request.nextUrl.searchParams),
-    );
-    const provider = (await params).provider;
+    try {
+        const data = searchParamsSchema.parse(
+            Object.fromEntries(request.nextUrl.searchParams),
+        );
+        const provider = (await params).provider;
+        const user = await getOAuthClient(provider).fetchUser(
+            data.code,
+            data.state,
+            await cookies(),
+        );
 
-    if (success) {
-        const user = await getOAuthClient(provider).fetchUser(data.code);
-        if (user) {
-            const result = await connectUser(user);
-            await createSession(result, await cookies());
-            redirect("/");
-        } else return NextResponse.json({ error: "Unable to connect" });
+        const result = await connectUser(user);
+        await createSession(result, await cookies());
+    } catch (err) {
+        const message = getErrorMessage(err);
+        redirect(`/login?error=${encodeURIComponent(message)}`);
     }
-    return NextResponse.json({ error: "Something went wrong" });
+    redirect("/");
 }
 
 async function connectUser(oauthUser: OAuthUser) {

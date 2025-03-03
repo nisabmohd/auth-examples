@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { createSession, destroySession } from "./session";
 import { Provider } from "@/db/drizzle/schema";
 import { cookies } from "next/headers";
-import { getOAuthClient } from "./client";
+import { getOAuthClient } from "./oauth-client";
 
 export async function credentialsLogin(payload: SignInPayload) {
     try {
@@ -36,5 +36,5 @@ export async function logout() {
 }
 
 export async function oAuthLogin(provider: Provider) {
-    redirect(getOAuthClient(provider).getAuthorizeUrl());
+    redirect(getOAuthClient(provider).getAuthorizeUrl(await cookies()));
 }
